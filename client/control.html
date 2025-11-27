@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Control Panel</title>
+  <style>
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      max-width: 680px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    label,
+    select,
+    input,
+    button {
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    textarea {
+      width: 100%;
+      height: 6rem;
+      font-family: monospace;
+    }
+    #log {
+      background: #111;
+      color: #f8f8f2;
+      padding: 0.75rem;
+      border-radius: 4px;
+      min-height: 8rem;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Control Panel</h1>
+  <p>Send UI commands to connected clients through the WebSocket server.</p>
+  <p>
+    Status: <span id="status">disconnected</span> · Agents:
+    <span id="client-count">0</span>
+  </p>
+
+  <div>
+    <button id="connect">Connect</button>
+  </div>
+
+  <fieldset style="margin-top:1rem">
+    <legend>Server commands</legend>
+    <div>
+      <button id="ping" disabled>Send ping</button>
+      <button id="echo" disabled>Send echo</button>
+    </div>
+    <div>
+      <label for="action">Client action</label>
+      <select id="action">
+        <option value="console">Console log</option>
+        <option value="alert">Alert</option>
+      </select>
+      <label for="message">Message</label>
+      <input id="message" type="text" placeholder="Message to client" />
+      <button id="send-client-command" disabled>Send to client</button>
+    </div>
+  </fieldset>
+
+  <fieldset style="margin-top:1rem">
+    <legend>Inspect target</legend>
+    <div>
+      <button id="refresh-clients" disabled>Refresh clients</button>
+      <label for="target-client">Target:</label>
+      <select id="target-client" disabled></select>
+    </div>
+    <div>
+      <label for="selector-input">Selector:</label>
+      <input id="selector-input" type="text" placeholder="body" />
+      <button id="inspect-target" disabled>Inspect</button>
+    </div>
+    <div>
+      <p style="margin-bottom:0.25rem">Inspect output:</p>
+      <textarea id="inspect-output" readonly></textarea>
+    </div>
+  </fieldset>
+
+  <p>Server log:</p>
+  <div id="log"></div>
+
+  <script>
+    const connectButton = document.getElementById("connect");
+    const pingButton = document.getElementById("ping");
+    const echoButton = document.getElementById("echo");
+    const statusEl = document.getElementById("status");
+    const log = document.getElementById("log");
+    const clientCountEl = document.getElementById("client-count");
+    const refreshButton = document.getElementById("refresh-clients");
+    const targetSelect = document.getElementById("target-client");
+    const selectorInput = document.getElementById("selector-input");
+    const inspectButton = document.getElementById("inspect-target");
+    const inspectOutput = document.getElementById("inspect-output");
+    const actionSelect = document.getElementById("action");
+    const messageInput = document.getElementById("message");
+    const sendClientCommandButton = document.getElementById("send-client-command");
+
+    let socket;
+    let clients = [];
+
+    function appendLog(message) {
+      log.textContent += message + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function updateStatus(connected) {
+      statusEl.textContent = connected ? "connected" : "disconnected";
+      pingButton.disabled = echoButton.disabled = refreshButton.disabled = !connected;
+      targetSelect.disabled = !connected;
+      inspectButton.disabled = !connected || !targetSelect.value;
+      sendClientCommandButton.disabled = !connected || !targetSelect.value;
+      connectButton.textContent = connected ? "Reconnect" : "Connect";
+    }
+
+    function populateClients(list) {
+      const agentClients = (list || []).filter((entry) => entry.role === "agent");
+      clients = agentClients;
+      clientCountEl.textContent = agentClients.length;
+      targetSelect.innerHTML = "";
+      if (!agentClients.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "no clients";
+        targetSelect.appendChild(option);
+        inspectButton.disabled = true;
+        sendClientCommandButton.disabled = true;
+        return;
+      }
+      agentClients.forEach((client) => {
+        const option = document.createElement("option");
+        option.value = client.clientId;
+        option.textContent = `${client.identity} (#${client.clientId}, ${client.address})`;
+        targetSelect.appendChild(option);
+      });
+      inspectButton.disabled = !targetSelect.value;
+      sendClientCommandButton.disabled = !targetSelect.value;
+    }
+
+    function connect() {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+
+      socket = new WebSocket("ws://localhost:65432");
+      appendLog("→ connecting...");
+
+      socket.addEventListener("open", () => {
+        appendLog("Connection opened");
+        updateStatus(true);
+        sendCommand("register", { identity: "CP", role: "cp" });
+        sendCommand("list-clients");
+      });
+
+      socket.addEventListener("message", (event) => {
+        appendLog("← " + event.data);
+        handleMessage(event);
+      });
+
+      socket.addEventListener("close", () => {
+        appendLog("Connection closed");
+        updateStatus(false);
+        populateClients([]);
+      });
+
+      socket.addEventListener("error", () => {
+        appendLog("WebSocket error encountered");
+      });
+    }
+
+    function handleMessage(event) {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        appendLog("Invalid JSON from server");
+        return;
+      }
+
+      if (data.type === "command-result") {
+        if (data.command === "list-clients" && Array.isArray(data.clients)) {
+          populateClients(data.clients);
+        }
+        return;
+      }
+
+      if (data.type === "client-list" && Array.isArray(data.clients)) {
+        populateClients(data.clients);
+        return;
+      }
+
+      if (data.type === "inspect-result") {
+        inspectOutput.value =
+          "Request " +
+          data.requestId +
+          ":\n" +
+          JSON.stringify(data.details, null, 2);
+      }
+    }
+
+    function sendCommand(command, data = null) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        appendLog("Socket not open");
+        return;
+      }
+
+      const payload = { command };
+      if (data !== null) {
+        payload.data = data;
+      }
+
+      socket.send(JSON.stringify(payload));
+      appendLog("→ " + JSON.stringify(payload));
+    }
+
+    connectButton.addEventListener("click", connect);
+    pingButton.addEventListener("click", () => sendCommand("ping"));
+    echoButton.addEventListener("click", () => sendCommand("echo", "Hello from controller"));
+    refreshButton.addEventListener("click", () => sendCommand("list-clients"));
+    inspectButton.addEventListener("click", () => {
+      const targetId = parseInt(targetSelect.value, 10);
+      if (!targetId) {
+        appendLog("Select a client first");
+        return;
+      }
+
+      sendCommand("inspect", {
+        targetId,
+        selector: selectorInput.value.trim() || "body",
+        requestId: `inspect-${Date.now()}`,
+      });
+    });
+
+    targetSelect.addEventListener("change", () => {
+      inspectButton.disabled = !targetSelect.value;
+      sendClientCommandButton.disabled =
+        !targetSelect.value || !(socket && socket.readyState === WebSocket.OPEN);
+    });
+
+    sendClientCommandButton.addEventListener("click", () => {
+      if (!targetSelect.value) {
+        appendLog("Select a client first");
+        return;
+      }
+      const action = actionSelect.value;
+      const message = messageInput.value.trim() || undefined;
+      sendCommand("client-command", {
+        action,
+        message,
+      });
+    });
+
+    updateStatus(false);
+  </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebSocket Command Demo</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 640px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    button {
+      margin-right: 0.5rem;
+    }
+    #log {
+      background: #f1f1f1;
+      border: 1px solid #ccc;
+      padding: 0.5rem 0.75rem;
+      min-height: 6rem;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Command Client</h1>
+  <p>
+    Connects to <code>ws://localhost:65432</code>, send commands, and runs actions that the server
+    requests such as logging or alerts.
+  </p>
+  <div>
+    <button id="connect">Connect</button>
+    <button id="ping" disabled>Send ping</button>
+    <button id="echo" disabled>Send echo</button>
+  </div>
+  <p>Connection status: <span id="status">disconnected</span></p>
+  <div id="log"></div>
+
+  <script>
+    const status = document.getElementById("status");
+    const log = document.getElementById("log");
+    const connectButton = document.getElementById("connect");
+    const pingButton = document.getElementById("ping");
+    const echoButton = document.getElementById("echo");
+
+    let socket;
+
+    function appendLog(message) {
+      log.textContent += message + "\n";
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function updateControls(connected) {
+      status.textContent = connected ? "connected" : "disconnected";
+      pingButton.disabled = echoButton.disabled = !connected;
+      connectButton.textContent = connected ? "Reconnect" : "Connect";
+    }
+
+    function collectElementDetails(selector = "body") {
+      const element = document.querySelector(selector);
+      if (!element) {
+        return { selector, found: false };
+      }
+      const rect = element.getBoundingClientRect();
+      return {
+        selector,
+        found: true,
+        tagName: element.tagName,
+        textSnippet: element.textContent?.trim().slice(0, 160) || "",
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        },
+        classes: Array.from(element.classList),
+      };
+    }
+
+    function handleServerCommand(payload) {
+      switch (payload.action) {
+        case "console":
+          console.log("Server:", payload.message || "");
+          appendLog("Console: " + (payload.message || "(none)"));
+          break;
+        case "alert":
+          alert(payload.message || "Alert from server");
+          appendLog("Alert shown");
+          break;
+        case "inspect-request": {
+          const selector = payload.selector || "body";
+          const details = collectElementDetails(selector);
+          sendCommand("inspect-response", {
+            requestId: payload.requestId,
+            details,
+          });
+          appendLog("Inspect response sent for " + selector);
+          break;
+        }
+        default:
+          appendLog("Unknown server command: " + payload.action);
+      }
+    }
+
+    function handleMessage(event) {
+      appendLog("← " + event.data);
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (err) {
+        appendLog("Invalid JSON from server");
+        return;
+      }
+
+      if (data.type === "command-result") {
+        appendLog(`Result ${data.command}: ${data.status}`);
+      } else if (data.type === "welcome") {
+        appendLog("Server welcomed us: " + (data.message || ""));
+      } else if (data.type === "client-command") {
+        handleServerCommand(data.payload || {});
+      }
+    }
+
+    function connect() {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+
+      socket = new WebSocket("ws://localhost:65432");
+      appendLog("→ connecting...");
+
+      socket.addEventListener("open", () => {
+        appendLog("Connection opened");
+        updateControls(true);
+      });
+
+      socket.addEventListener("message", handleMessage);
+
+      socket.addEventListener("close", () => {
+        appendLog("Connection closed");
+        updateControls(false);
+      });
+
+      socket.addEventListener("error", () => {
+        appendLog("WebSocket error");
+      });
+    }
+
+    function sendCommand(command, data = null) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        appendLog("Cannot send, socket not open");
+        return;
+      }
+
+      const payload = { command };
+      if (data !== null) {
+        payload.data = data;
+      }
+
+      socket.send(JSON.stringify(payload));
+      appendLog("→ " + JSON.stringify(payload));
+    }
+
+    connectButton.addEventListener("click", connect);
+    pingButton.addEventListener("click", () => sendCommand("ping"));
+    echoButton.addEventListener("click", () => sendCommand("echo", "Hello from browser"));
+
+    updateControls(false);
+  </script>
+</body>
+</html>
