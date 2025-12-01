@@ -99,3 +99,8 @@ htmlcov/
 
 # Thumbs.db
 Thumbs.db
+
+# Node.js
+node_modules/
+proxy-node/node_modules/
+proxy-node/package-lock.json

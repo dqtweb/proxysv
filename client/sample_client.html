@@ -45,6 +45,12 @@
     const echoButton = document.getElementById("echo");
 
     let socket;
+    const clientIdentity = `BrowserClient-${Math.random().toString(36).slice(2, 6)}`;
+    const endpoint = (() => {
+      const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+      const host = window.location.hostname || "localhost";
+      return `${scheme}://${host}:65432`;
+    })();
 
     function appendLog(message) {
       log.textContent += message + "\n";
@@ -127,11 +133,12 @@
         socket.close();
       }
 
-      socket = new WebSocket("ws://localhost:65432");
+      socket = new WebSocket(endpoint);
       appendLog("→ connecting...");
 
       socket.addEventListener("open", () => {
         appendLog("Connection opened");
+        sendCommand("register", { identity: clientIdentity, role: "agent" });
         updateControls(true);
       });
 
