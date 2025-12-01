@@ -4,26 +4,126 @@
   <meta charset="UTF-8" />
   <title>Control Panel</title>
   <style>
-    body {
+    :root {
       font-family: "Segoe UI", system-ui, sans-serif;
-      max-width: 680px;
-      margin: 2rem auto;
-      padding: 0 1rem;
+      color-scheme: light dark;
+      --bg: #f7f7f7;
+      --panel: #ffffff;
+      --border: #c4c4c4;
+      --text: #111;
+      --accent: #2563eb;
+      --muted: #555;
     }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    body[data-theme="dark"] {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --accent: #93c5fd;
+      --muted: #a5b4fc;
+    }
+
+    body {
+      padding: 1rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 1rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 1rem;
+      align-self: start;
+    }
+
+    .sidebar nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .sidebar nav a {
+      color: var(--text);
+      text-decoration: none;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+    }
+
+    .sidebar nav a:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .hero {
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 1.75rem;
+    }
+
+    .hero button {
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      padding: 0.5rem 1rem;
+      color: var(--text);
+    }
+
+    .hero button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
     label,
     select,
     input,
     button {
       margin-right: 0.5rem;
       margin-bottom: 0.5rem;
+      font-size: 0.95rem;
     }
+
     textarea {
       width: 100%;
       height: 6rem;
       font-family: monospace;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0.5rem;
     }
+
     #log {
-      background: #111;
+      background: #0f172a;
       color: #f8f8f2;
       padding: 0.75rem;
       border-radius: 4px;
@@ -31,58 +131,123 @@
       white-space: pre-wrap;
       font-family: monospace;
     }
-  </style>
+
+    #log.light {
+      background: #111;
+    }
+
+    fieldset {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background: var(--panel);
+    }
+
+    fieldset legend {
+      padding: 0 0.5rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .section-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+    }
+
+</style>
 </head>
-<body>
-  <h1>Control Panel</h1>
-  <p>Send UI commands to connected clients through the WebSocket server.</p>
-  <p>
-    Status: <span id="status">disconnected</span> · Agents:
-    <span id="client-count">0</span>
-  </p>
+<body data-theme="light">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="panel">
+        <strong>Navigation</strong>
+        <nav>
+          <a href="#connection">Connection</a>
+          <a href="#commands">Server commands</a>
+          <a href="#inspect">Inspect</a>
+          <a href="#log">Server log</a>
+        </nav>
+      </div>
+    </aside>
+    <main>
+      <section class="panel hero">
+        <div>
+          <h1>Control Panel</h1>
+          <p style="color: var(--muted); margin: 0;">
+            Send UI commands to connected clients through the WebSocket server.
+          </p>
+        </div>
+        <button id="theme-toggle" type="button">Enable dark mode</button>
+      </section>
 
-  <div>
-    <button id="connect">Connect</button>
+      <section class="panel" id="connection">
+        <div class="section-content">
+          <p>
+            Status: <strong id="status">disconnected</strong> · Agents:
+            <strong id="client-count">0</strong>
+          </p>
+          <button id="connect">Connect</button>
+        </div>
+      </section>
+
+      <section class="panel" id="commands">
+        <fieldset>
+          <legend>Server commands</legend>
+          <div>
+            <button id="ping" disabled>Send ping</button>
+            <button id="echo" disabled>Send echo</button>
+          </div>
+          <div>
+            <label for="action">Client action</label>
+            <select id="action">
+              <option value="console">Console log</option>
+              <option value="alert">Alert</option>
+            </select>
+            <label for="message">Message</label>
+            <input id="message" type="text" placeholder="Message to client" />
+            <button id="send-client-command" disabled>Send to client</button>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="panel" id="inspect">
+        <fieldset>
+          <legend>Inspect target</legend>
+          <div>
+            <button id="refresh-clients" disabled>Refresh clients</button>
+            <label for="target-client">Target:</label>
+            <select id="target-client" disabled></select>
+          </div>
+          <div>
+            <label for="selector-input">Selector:</label>
+            <input id="selector-input" type="text" placeholder="body" />
+            <button id="inspect-target" disabled>Inspect</button>
+          </div>
+          <div>
+            <p style="margin-bottom:0.25rem">Inspect output:</p>
+            <textarea id="inspect-output" readonly></textarea>
+          </div>
+        </fieldset>
+      </section>
+
+      <section class="panel">
+        <p style="margin-bottom:0.5rem">Server log:</p>
+        <div id="log"></div>
+      </section>
+    </main>
   </div>
-
-  <fieldset style="margin-top:1rem">
-    <legend>Server commands</legend>
-    <div>
-      <button id="ping" disabled>Send ping</button>
-      <button id="echo" disabled>Send echo</button>
-    </div>
-    <div>
-      <label for="action">Client action</label>
-      <select id="action">
-        <option value="console">Console log</option>
-        <option value="alert">Alert</option>
-      </select>
-      <label for="message">Message</label>
-      <input id="message" type="text" placeholder="Message to client" />
-      <button id="send-client-command" disabled>Send to client</button>
-    </div>
-  </fieldset>
-
-  <fieldset style="margin-top:1rem">
-    <legend>Inspect target</legend>
-    <div>
-      <button id="refresh-clients" disabled>Refresh clients</button>
-      <label for="target-client">Target:</label>
-      <select id="target-client" disabled></select>
-    </div>
-    <div>
-      <label for="selector-input">Selector:</label>
-      <input id="selector-input" type="text" placeholder="body" />
-      <button id="inspect-target" disabled>Inspect</button>
-    </div>
-    <div>
-      <p style="margin-bottom:0.25rem">Inspect output:</p>
-      <textarea id="inspect-output" readonly></textarea>
-    </div>
-  </fieldset>
-
-  <p>Server log:</p>
-  <div id="log"></div>
 
   <script>
     const connectButton = document.getElementById("connect");
@@ -99,9 +264,41 @@
     const actionSelect = document.getElementById("action");
     const messageInput = document.getElementById("message");
     const sendClientCommandButton = document.getElementById("send-client-command");
+    const themeToggle = document.getElementById("theme-toggle");
+
+    const endpoint =
+      window.WS_PROXY_ENDPOINT?.trim() ||
+      "ws://localhost:65432";
 
     let socket;
     let clients = [];
+    let currentTheme = "light";
+
+    function setTheme(theme) {
+      const body = document.body;
+      const normalized = theme === "dark" ? "dark" : "light";
+      currentTheme = normalized;
+      body.setAttribute("data-theme", normalized);
+      log.classList.toggle("light", normalized === "light");
+      themeToggle.textContent =
+        normalized === "dark" ? "Enable light mode" : "Enable dark mode";
+      try {
+        localStorage.setItem("controlTheme", normalized);
+      } catch (err) {
+        console.error("Unable to save theme preference", err);
+      }
+    }
+
+    const savedTheme = localStorage.getItem("controlTheme");
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else {
+      setTheme("light");
+    }
+
+    themeToggle.addEventListener("click", () => {
+      setTheme(currentTheme === "dark" ? "light" : "dark");
+    });
 
     function appendLog(message) {
       log.textContent += message + "\n";
@@ -146,7 +343,7 @@
         socket.close();
       }
 
-      socket = new WebSocket("ws://localhost:65432");
+      socket = new WebSocket(endpoint);
       appendLog("→ connecting...");
 
       socket.addEventListener("open", () => {

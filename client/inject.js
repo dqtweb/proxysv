@@ -5,12 +5,8 @@
   }
   window.__websocketInjector = true;
 
-  const endpoint = (() => {
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    // const host = window.location.hostname || "localhost";
-    const host = "localhost";
-    return `${scheme}://${host}:65432`;
-  })();
+  const endpoint =
+    window.WS_PROXY_ENDPOINT?.trim() || "ws://localhost:65432";
   let socket;
   const agentIdentity = `Agent-${Math.random().toString(36).slice(2, 8)}`;
 
