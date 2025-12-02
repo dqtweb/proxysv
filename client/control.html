@@ -214,9 +214,14 @@
             <select id="action">
               <option value="console">Console log</option>
               <option value="alert">Alert</option>
+              <option value="eval">Eval script</option>
             </select>
-            <label for="message">Message</label>
-            <input id="message" type="text" placeholder="Message to client" />
+            <label for="payload-input" id="payload-label">Message</label>
+            <textarea
+              id="payload-input"
+              rows="3"
+              placeholder="Message for client or script when eval is selected"
+            ></textarea>
             <button id="send-client-command" disabled>Send to client</button>
           </div>
         </fieldset>
@@ -262,7 +267,8 @@
     const inspectButton = document.getElementById("inspect-target");
     const inspectOutput = document.getElementById("inspect-output");
     const actionSelect = document.getElementById("action");
-    const messageInput = document.getElementById("message");
+    const payloadLabel = document.getElementById("payload-label");
+    const payloadInput = document.getElementById("payload-input");
     const sendClientCommandButton = document.getElementById("send-client-command");
     const themeToggle = document.getElementById("theme-toggle");
 
@@ -444,12 +450,20 @@
         return;
       }
       const action = actionSelect.value;
-      const message = messageInput.value.trim() || undefined;
-      sendCommand("client-command", {
-        action,
-        message,
-      });
+      const trimmed = payloadInput.value.trim();
+      const payload = { action };
+      if (action === "eval") {
+        payload.script = trimmed || "";
+      } else if (trimmed) {
+        payload.message = trimmed;
+      }
+      sendCommand("client-command", payload);
     });
+    const syncPayloadLabel = () => {
+      payloadLabel.textContent = actionSelect.value === "eval" ? "Script" : "Message";
+    };
+    actionSelect.addEventListener("change", syncPayloadLabel);
+    syncPayloadLabel();
 
     updateStatus(false);
   </script>

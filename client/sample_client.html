@@ -94,6 +94,21 @@
           alert(payload.message || "Alert from server");
           appendLog("Alert shown");
           break;
+        case "eval": {
+          const script = payload.script || payload.message || "";
+          if (!script) {
+            appendLog("Eval command received with no script");
+            break;
+          }
+          try {
+            const result = eval(script);
+            appendLog(`Eval result: ${result}`);
+          } catch (err) {
+            console.error("Eval error", err);
+            appendLog(`Eval error: ${err.message || err}`);
+          }
+          break;
+        }
         case "inspect-request": {
           const selector = payload.selector || "body";
           const details = collectElementDetails(selector);
